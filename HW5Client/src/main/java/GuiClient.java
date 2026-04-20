@@ -91,8 +91,8 @@ public class GuiClient extends Application {
 				final int finalRow = row;
 				final int finalCol = col;
 				Button square = new Button();
-				square.setMinSize(64, 64);
-				square.setMaxSize(64, 64);
+				square.setMinSize(104, 104);
+				square.setMaxSize(104, 104);
 				square.setOnAction(e -> handleBoardClick(finalRow, finalCol));
 				boardButtons[row][col] = square;
 				boardGrid.add(square, col, row);
@@ -139,7 +139,7 @@ public class GuiClient extends Application {
 		root.setBottom(bottomPanel);
 
 		renderBoard();
-		return new Scene(root, 760, 760);
+		return new Scene(root, 1080, 1180);
 	}
 
 	private void handleJoin() {
@@ -404,8 +404,8 @@ public class GuiClient extends Application {
 					}
 
 					if (pieceGraphic != null) {
-						pieceGraphic.setFitWidth(50);
-						pieceGraphic.setFitHeight(50);
+						pieceGraphic.setFitWidth(88);
+						pieceGraphic.setFitHeight(88);
 						pieceGraphic.setPreserveRatio(true);
 						square.setGraphic(pieceGraphic);
 						square.setText("");
