@@ -23,6 +23,10 @@ public class Server {
 	private TheServer server;
 	private Consumer<Serializable> callback;
 
+	private void log(String tag, String text) {
+		callback.accept("[" + tag + "] " + text);
+	}
+
 	Server(Consumer<Serializable> call) {
 		callback = call;
 		server = new TheServer();
@@ -159,6 +163,41 @@ public class Server {
 		return false;
 	}
 
+	private boolean hasCaptureFrom(char[][] board, int row, int col, String color) {
+		char piece = board[row][col];
+		if (!isPlayerPiece(piece, color)) {
+			return false;
+		}
+
+		int[] directions = isKing(piece) ? new int[] { -1, 1 } : ("red".equals(color) ? new int[] { 1 } : new int[] { -1 });
+		for (int i = 0; i < directions.length; i++) {
+			int dr = directions[i];
+			for (int dc = -1; dc <= 1; dc += 2) {
+				int middleRow = row + dr;
+				int middleCol = col + dc;
+				int jumpRow = row + (2 * dr);
+				int jumpCol = col + (2 * dc);
+				if (inBounds(middleRow, middleCol) && inBounds(jumpRow, jumpCol) && board[jumpRow][jumpCol] == '.'
+						&& isOpponentPiece(board[middleRow][middleCol], color)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	private boolean hasAnyCapture(char[][] board, String color) {
+		for (int row = 0; row < 8; row++) {
+			for (int col = 0; col < 8; col++) {
+				if (hasCaptureFrom(board, row, col, color)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private String winnerByPieces(char[][] board) {
 		int redCount = 0;
 		int blackCount = 0;
@@ -181,32 +220,42 @@ public class Server {
 		return null;
 	}
 
-	private boolean applyMove(GameSession game, Message moveMessage, String playerColor, StringBuilder errorMessage) {
+	private MoveResult applyMove(GameSession game, Message moveMessage, String playerColor, StringBuilder errorMessage) {
+		MoveResult result = new MoveResult();
 		int fromRow = moveMessage.getFromRow();
 		int fromCol = moveMessage.getFromCol();
 		int toRow = moveMessage.getToRow();
 		int toCol = moveMessage.getToCol();
 		char[][] board = game.board;
+		boolean forcedJumpTurn = game.forcedJumpUserID != null && game.forcedJumpUserID.equals(moveMessage.getUserID());
+		boolean anyCaptureAvailable = hasAnyCapture(board, playerColor);
 
 		if (!inBounds(fromRow, fromCol) || !inBounds(toRow, toCol)) {
 			errorMessage.append("Move is out of bounds");
-			return false;
+			return result;
+		}
+
+		if (forcedJumpTurn) {
+			if (fromRow != game.forcedFromRow || fromCol != game.forcedFromCol) {
+				errorMessage.append("You must continue jumping with the same piece");
+				return result;
+			}
 		}
 
 		if (board[toRow][toCol] != '.') {
 			errorMessage.append("Destination is not empty");
-			return false;
+			return result;
 		}
 
 		if ((toRow + toCol) % 2 == 0) {
 			errorMessage.append("Move must land on a dark square");
-			return false;
+			return result;
 		}
 
 		char piece = board[fromRow][fromCol];
 		if (!isPlayerPiece(piece, playerColor)) {
 			errorMessage.append("Selected piece is not yours");
-			return false;
+			return result;
 		}
 
 		int deltaRow = toRow - fromRow;
@@ -214,35 +263,40 @@ public class Server {
 
 		if (Math.abs(deltaRow) != Math.abs(deltaCol)) {
 			errorMessage.append("Move must be diagonal");
-			return false;
+			return result;
 		}
 
 		boolean king = isKing(piece);
 		int direction = "red".equals(playerColor) ? 1 : -1;
 
 		if (Math.abs(deltaRow) == 1) {
+			if (forcedJumpTurn || anyCaptureAvailable) {
+				errorMessage.append("Capture is mandatory");
+				return result;
+			}
 			if (!king && deltaRow != direction) {
 				errorMessage.append("Piece can only move forward");
-				return false;
+				return result;
 			}
 		}
 		else if (Math.abs(deltaRow) == 2) {
 			if (!king && deltaRow != 2 * direction) {
 				errorMessage.append("Piece can only capture forward");
-				return false;
+				return result;
 			}
 			int middleRow = (fromRow + toRow) / 2;
 			int middleCol = (fromCol + toCol) / 2;
 			char middlePiece = board[middleRow][middleCol];
 			if (!isOpponentPiece(middlePiece, playerColor)) {
 				errorMessage.append("No opponent piece to capture");
-				return false;
+				return result;
 			}
 			board[middleRow][middleCol] = '.';
+			result.wasCapture = true;
 		}
 		else {
 			errorMessage.append("Move distance is invalid");
-			return false;
+			return result;
 		}
 
 		board[toRow][toCol] = board[fromRow][fromCol];
@@ -255,7 +309,22 @@ public class Server {
 			board[toRow][toCol] = 'B';
 		}
 
-		return true;
+		if (result.wasCapture && hasCaptureFrom(board, toRow, toCol, playerColor)) {
+			result.mustContinueJump = true;
+			result.continueFromRow = toRow;
+			result.continueFromCol = toCol;
+		}
+
+		result.applied = true;
+		return result;
+	}
+
+	public class MoveResult {
+		boolean applied;
+		boolean wasCapture;
+		boolean mustContinueJump;
+		int continueFromRow;
+		int continueFromCol;
 	}
 
 	private void sendBoardState(GameSession game, String messageBody) {
@@ -285,6 +354,7 @@ public class Server {
 
 	private void endGame(GameSession game, String winnerColor, String reason) {
 		game.active = false;
+		game.forcedJumpUserID = null;
 		gamesByUser.remove(game.redPlayer.userID);
 		gamesByUser.remove(game.blackPlayer.userID);
 		gamesById.remove(game.gameID);
@@ -327,7 +397,7 @@ public class Server {
 
 		sendMessage(game.redPlayer, redEnd);
 		sendMessage(game.blackPlayer, blackEnd);
-		callback.accept("Game ended: " + game.gameID + " winner=" + winnerColor);
+		log("ROUND END", game.gameID + " winner=" + winnerColor + " reason=" + reason);
 	}
 
 	private void tryStartMatch(ClientThread secondPlayer) {
@@ -338,6 +408,7 @@ public class Server {
 			waiting.setStatusCode(200);
 			waiting.setMessageBody("Waiting for another player...");
 			sendMessage(secondPlayer, waiting);
+			log("QUEUE", secondPlayer.userID + " is waiting for opponent");
 			return;
 		}
 
@@ -352,6 +423,7 @@ public class Server {
 		game.board = createStartingBoard();
 		game.turnColor = "red";
 		game.active = true;
+		game.forcedJumpUserID = null;
 
 		gamesById.put(game.gameID, game);
 		gamesByUser.put(firstPlayer.userID, game);
@@ -379,7 +451,7 @@ public class Server {
 
 		sendMessage(firstPlayer, redMatch);
 		sendMessage(secondPlayer, blackMatch);
-		callback.accept("Started match: " + game.gameID + " red=" + firstPlayer.userID + " black=" + secondPlayer.userID);
+		log("MATCH START", game.gameID + " red=" + firstPlayer.userID + " black=" + secondPlayer.userID);
 	}
 
 	private void handleChat(ClientThread sender, Message chatMessage) {
@@ -420,6 +492,7 @@ public class Server {
 		toSender.setReceiverID(opponent.userID);
 		toSender.setMessageBody("You: " + chatMessage.getMessageBody());
 		sendMessage(sender, toSender);
+		log("CHAT", sender.userID + " -> " + opponent.userID + " in " + game.gameID);
 	}
 
 	private void handleMove(ClientThread sender, Message moveMessage) {
@@ -449,22 +522,36 @@ public class Server {
 			error.setStatusCode(400);
 			error.setMessageBody("It is not your turn");
 			sendMessage(sender, error);
+			log("REJECT", sender.userID + " move denied: not your turn");
 			return;
 		}
 
 		StringBuilder errorMessage = new StringBuilder();
-		boolean applied = applyMove(game, moveMessage, playerColor, errorMessage);
-		if (!applied) {
+		MoveResult result = applyMove(game, moveMessage, playerColor, errorMessage);
+		if (!result.applied) {
 			Message error = new Message();
 			error.setMessageType(Message.ERROR);
 			error.setStatusCode(400);
 			error.setMessageBody(errorMessage.toString());
 			sendMessage(sender, error);
+			log("REJECT", sender.userID + " move denied: " + errorMessage.toString());
 			return;
 		}
 
+		if (result.mustContinueJump) {
+			game.forcedJumpUserID = sender.userID;
+			game.forcedFromRow = result.continueFromRow;
+			game.forcedFromCol = result.continueFromCol;
+			sendBoardState(game, sender.userID + " captured. Continue jump with same piece.");
+			log("MOVE", sender.userID + " captured in " + game.gameID + " and must continue jump");
+			return;
+		}
+
+		game.forcedJumpUserID = null;
+
 		game.turnColor = "red".equals(game.turnColor) ? "black" : "red";
 		sendBoardState(game, sender.userID + " moved");
+		log("MOVE", sender.userID + " moved in " + game.gameID + " turn->" + game.turnColor);
 
 		String winnerByPieces = winnerByPieces(game.board);
 		if (winnerByPieces != null) {
@@ -508,6 +595,7 @@ public class Server {
 			gamesByUser.remove(game.redPlayer.userID);
 			gamesByUser.remove(game.blackPlayer.userID);
 			gamesById.remove(game.gameID);
+			log("ROUND END", game.gameID + " ended because " + clientThread.userID + " disconnected");
 		}
 	}
 
@@ -518,6 +606,9 @@ public class Server {
 		char[][] board;
 		String turnColor;
 		boolean active;
+		String forcedJumpUserID;
+		int forcedFromRow;
+		int forcedFromCol;
 	}
 
 	public class ClientThread extends Thread {
@@ -567,7 +658,7 @@ public class Server {
 				joinMsg.setUserID(requestedUserID);
 				joinMsg.setMessageBody("Joined server as " + requestedUserID);
 				sendMessage(this, joinMsg);
-				callback.accept("Joined: " + requestedUserID);
+				log("CONNECT", "Joined: " + requestedUserID);
 				return requestedUserID;
 			}
 			catch (Exception e) {
@@ -582,7 +673,7 @@ public class Server {
 				connection.setTcpNoDelay(true);
 			}
 			catch (Exception e) {
-				callback.accept("Streams not open");
+				log("ERROR", "Streams not open");
 				return;
 			}
 
@@ -610,7 +701,7 @@ public class Server {
 				}
 				catch (Exception e) {
 					synchronized (Server.this) {
-						callback.accept("Client disconnected: " + joinedUserID);
+						log("DISCONNECT", "Client disconnected: " + joinedUserID);
 						handleDisconnect(this);
 					}
 					break;
@@ -622,11 +713,11 @@ public class Server {
 	public class TheServer extends Thread {
 		public void run() {
 			try (ServerSocket mysocket = new ServerSocket(5555)) {
-				callback.accept("Server is waiting for a client!");
+				log("SERVER", "Server is waiting for a client!");
 				while (true) {
 					Socket socket = mysocket.accept();
 					ClientThread clientThread = new ClientThread(socket, count);
-					callback.accept("Socket connected");
+					log("CONNECT", "Socket connected");
 					synchronized (Server.this) {
 						clients.add(clientThread);
 					}
@@ -635,7 +726,7 @@ public class Server {
 				}
 			}
 			catch (Exception e) {
-				callback.accept("Server socket did not launch");
+				log("ERROR", "Server socket did not launch");
 			}
 		}
 	}
