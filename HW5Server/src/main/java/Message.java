@@ -1,145 +1,153 @@
 import java.io.Serializable;
 
-
-/*
-Instructions:
-– Allow the user to pick a username when joining the server. The client should
-receive an error message if the name is already taken and be prompted to provide
-a new name. Once the client’s username is chosen, it should not be changable.
-– View all users that are currently connected to the server
-– Send a message either to all users or to an individual user.
-– View all messages sent to the user.
-
-Operations:
-- Create a new user ID (join)
-- Create a group (create_group)
-- Send a message to all clients (send_all)
-- Send a message to a group of clients (send_group)
-- Send a message to an individual client (send_one)
-- View all users (view_users)
-
-
-
-The Message code will need to include all information that may be sent over the
-network. The message needs to be able to: create a new user ID, create a group, send
-a message to all clients, a group of clients or an individual
-
-Variables for message class (kind of like HTTP header):
-- Status code (200 for success, 400 for bad request, etc.)
-- Message type (e.g., "join", "message", "list_users", etc.)
-- User ID
-- Receiver ID (for messages sent to an individual user)
-- Group ID
-- Message Body (the actual message content)
-
-*/
-
-
-
-
-
-
-/*
-Uzair Azizuddin
-Edits Made:
-- Added operations for the Message class
-- Added variables for the Message class
-- Added methods for the Message class (setters, getters, and constructors)
-*/
-
 public class Message implements Serializable {
-    private static final long serialVersionUID = 42L;
 
-    // Data each message needs to have
-    private int statusCode;
-    private String messageType;
-    private String userID;
-    private String receiverID;
-    private String groupID;
-    private String messageBody;
+	private static final long serialVersionUID = 42L;
 
+	public static final String JOIN = "join";
+	public static final String WAITING = "waiting";
+	public static final String MATCH_FOUND = "match_found";
+	public static final String CHAT = "chat";
+	public static final String MOVE = "move";
+	public static final String BOARD_STATE = "board_state";
+	public static final String GAME_OVER = "game_over";
+	public static final String ERROR = "error";
+	public static final String REMATCH = "rematch";
+	public static final String QUIT = "quit";
 
-    // Message operations
-    public static final String JOIN = "join";
-    public static final String VIEW_USERS = "view_users";
-    public static final String SEND_ALL = "send_all";
-    public static final String SEND_ONE = "send_one";
-    public static final String CREATE_GROUP = "create_group";
-    public static final String SEND_GROUP = "send_group";
+	private int statusCode;
+	private String messageType;
+	private String userID;
+	private String receiverID;
+	private String messageBody;
 
+	private String gameID;
+	private String playerColor;
+	private String opponentID;
+	private String boardState;
+	private String turnColor;
 
+	private int fromRow;
+	private int fromCol;
+	private int toRow;
+	private int toCol;
 
-    // Methods
-    public Message() {
-    }
+	public Message() {
+		fromRow = -1;
+		fromCol = -1;
+		toRow = -1;
+		toCol = -1;
+	}
 
-    // Constructor for creating a message with all fields.
-    public Message(String messageType, String userID, String receiverID, String groupID, String messageBody) {
-        this.messageType = messageType;
-        this.userID = userID;
-        this.receiverID = receiverID;
-        this.groupID = groupID;
-        this.messageBody = messageBody;
-    }
+	public int getStatusCode() {
+		return statusCode;
+	}
 
-    // Get status code of the message
-    public int getStatusCode() {
-        return statusCode;
-    }
+	public void setStatusCode(int statusCode) {
+		this.statusCode = statusCode;
+	}
 
-    // Set status code of the message to what is passed in
-    public void setStatusCode(int statusCode) {
-        this.statusCode = statusCode;
-    }
+	public String getMessageType() {
+		return messageType;
+	}
 
+	public void setMessageType(String messageType) {
+		this.messageType = messageType;
+	}
 
-    // Get message type of the message
-    public String getMessageType() {
-        return messageType;
-    }
+	public String getUserID() {
+		return userID;
+	}
 
-    // Set message type of the message to what is passed in
-    public void setMessageType(String messageType) {
-        this.messageType = messageType;
-    }
+	public void setUserID(String userID) {
+		this.userID = userID;
+	}
 
-    // Get user ID of the message
-    public String getUserID() {
-        return userID;
-    }
+	public String getReceiverID() {
+		return receiverID;
+	}
 
-    // Set user ID of the message to what is passed in
-    public void setUserID(String userID) {
-        this.userID = userID;
-    }
+	public void setReceiverID(String receiverID) {
+		this.receiverID = receiverID;
+	}
 
-    // Get receiver ID of the message
-    public String getReceiverID() {
-        return receiverID;
-    }
+	public String getMessageBody() {
+		return messageBody;
+	}
 
-    // Set receiver ID of the message to what is passed in
-    public void setReceiverID(String receiverID) {
-        this.receiverID = receiverID;
-    }
+	public void setMessageBody(String messageBody) {
+		this.messageBody = messageBody;
+	}
 
-    // Get group ID of the message
-    public String getGroupID() {
-        return groupID;
-    }
+	public String getGameID() {
+		return gameID;
+	}
 
-    // Set group ID of the message to what is passed in
-    public void setGroupID(String groupID) {
-        this.groupID = groupID;
-    }
+	public void setGameID(String gameID) {
+		this.gameID = gameID;
+	}
 
-    // Get message body of the message
-    public String getMessageBody() {
-        return messageBody;
-    }
+	public String getPlayerColor() {
+		return playerColor;
+	}
 
-    // Set message body of the message to what is passed in
-    public void setMessageBody(String messageBody) {
-        this.messageBody = messageBody;
-    }
+	public void setPlayerColor(String playerColor) {
+		this.playerColor = playerColor;
+	}
+
+	public String getOpponentID() {
+		return opponentID;
+	}
+
+	public void setOpponentID(String opponentID) {
+		this.opponentID = opponentID;
+	}
+
+	public String getBoardState() {
+		return boardState;
+	}
+
+	public void setBoardState(String boardState) {
+		this.boardState = boardState;
+	}
+
+	public String getTurnColor() {
+		return turnColor;
+	}
+
+	public void setTurnColor(String turnColor) {
+		this.turnColor = turnColor;
+	}
+
+	public int getFromRow() {
+		return fromRow;
+	}
+
+	public void setFromRow(int fromRow) {
+		this.fromRow = fromRow;
+	}
+
+	public int getFromCol() {
+		return fromCol;
+	}
+
+	public void setFromCol(int fromCol) {
+		this.fromCol = fromCol;
+	}
+
+	public int getToRow() {
+		return toRow;
+	}
+
+	public void setToRow(int toRow) {
+		this.toRow = toRow;
+	}
+
+	public int getToCol() {
+		return toCol;
+	}
+
+	public void setToCol(int toCol) {
+		this.toCol = toCol;
+	}
 }
