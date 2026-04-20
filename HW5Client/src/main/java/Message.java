@@ -12,6 +12,8 @@ public class Message implements Serializable {
 	public static final String BOARD_STATE = "board_state";
 	public static final String GAME_OVER = "game_over";
 	public static final String ERROR = "error";
+	public static final String REMATCH = "rematch";
+	public static final String QUIT = "quit";
 
 	private int statusCode;
 	private String messageType;

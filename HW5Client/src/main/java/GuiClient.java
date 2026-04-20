@@ -31,6 +31,8 @@ public class GuiClient extends Application {
 	private ListView<String> chatList;
 	private TextField chatField;
 	private Button chatSendButton;
+	private Button playAgainButton;
+	private Button quitButton;
 
 	private boolean joined = false;
 	private boolean inGame = false;
@@ -98,6 +100,14 @@ public class GuiClient extends Application {
 
 		chatSendButton = new Button("Send Chat");
 		chatSendButton.setOnAction(e -> handleChatSend());
+
+		playAgainButton = new Button("Play Again");
+		playAgainButton.setDisable(true);
+		playAgainButton.setOnAction(e -> handlePlayAgain());
+
+		quitButton = new Button("Quit");
+		quitButton.setDisable(true);
+		quitButton.setOnAction(e -> handleQuitGame());
 	}
 
 	private Scene createClientGui() {
@@ -110,7 +120,7 @@ public class GuiClient extends Application {
 
 		root.setCenter(boardGrid);
 
-		HBox chatInputRow = new HBox(10, chatField, chatSendButton);
+		HBox chatInputRow = new HBox(10, chatField, chatSendButton, playAgainButton, quitButton);
 		chatInputRow.setAlignment(Pos.CENTER_LEFT);
 		VBox bottomPanel = new VBox(8, chatList, chatInputRow);
 		bottomPanel.setPadding(new Insets(10, 0, 0, 0));
@@ -247,6 +257,8 @@ public class GuiClient extends Application {
 			statusLabel.setText(message.getMessageBody());
 			chatList.getItems().clear();
 			chatList.getItems().add("Matched with " + opponentID + ".");
+			playAgainButton.setDisable(true);
+			quitButton.setDisable(true);
 			return;
 		}
 
@@ -272,6 +284,8 @@ public class GuiClient extends Application {
 			renderBoard();
 			statusLabel.setText(message.getMessageBody());
 			chatList.getItems().add(message.getMessageBody());
+			playAgainButton.setDisable(false);
+			quitButton.setDisable(false);
 			return;
 		}
 
@@ -279,6 +293,31 @@ public class GuiClient extends Application {
 			statusLabel.setText(message.getMessageBody());
 			return;
 		}
+	}
+
+	private void handlePlayAgain() {
+		if (gameID == null || gameID.equals("")) {
+			return;
+		}
+		Message message = new Message();
+		message.setMessageType(Message.REMATCH);
+		message.setUserID(userID);
+		message.setGameID(gameID);
+		clientConnection.send(message);
+		statusLabel.setText("Rematch requested...");
+		playAgainButton.setDisable(true);
+	}
+
+	private void handleQuitGame() {
+		Message message = new Message();
+		message.setMessageType(Message.QUIT);
+		message.setUserID(userID);
+		message.setGameID(gameID);
+		clientConnection.send(message);
+		inGame = false;
+		statusLabel.setText("You quit the game.");
+		playAgainButton.setDisable(true);
+		quitButton.setDisable(true);
 	}
 
 	private char[][] emptyBoard() {

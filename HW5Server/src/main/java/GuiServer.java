@@ -1,16 +1,17 @@
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.EventHandler;
-import javafx.geometry.Pos;
+import javafx.geometry.Insets;
 import javafx.scene.Scene;
-import javafx.scene.control.Label;
-import javafx.scene.layout.StackPane;
+import javafx.scene.control.ListView;
+import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 
 public class GuiServer extends Application {
 
 	private Server serverConnection;
+	private ListView<String> logList;
 
 	public static void main(String[] args) {
 		launch(args);
@@ -18,11 +19,17 @@ public class GuiServer extends Application {
 
 	@Override
 	public void start(Stage primaryStage) throws Exception {
-		serverConnection = new Server(data -> System.out.println(String.valueOf(data)));
+		logList = new ListView<String>();
 
-		StackPane pane = new StackPane();
-		pane.setAlignment(Pos.CENTER);
-		pane.getChildren().add(new Label("Server running"));
+		serverConnection = new Server(data -> {
+			String logLine = String.valueOf(data);
+			System.out.println(logLine);
+			Platform.runLater(() -> logList.getItems().add(logLine));
+		});
+
+		BorderPane pane = new BorderPane();
+		pane.setPadding(new Insets(10));
+		pane.setCenter(logList);
 
 		primaryStage.setOnCloseRequest(new EventHandler<WindowEvent>() {
 			@Override
@@ -32,8 +39,8 @@ public class GuiServer extends Application {
 			}
 		});
 
-		primaryStage.setScene(new Scene(pane, 250, 120));
-		primaryStage.setTitle("Server");
+		primaryStage.setScene(new Scene(pane, 700, 500));
+		primaryStage.setTitle("Server Logs");
 		primaryStage.show();
 	}
 }

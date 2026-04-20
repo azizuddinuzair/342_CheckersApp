@@ -355,9 +355,8 @@ public class Server {
 	private void endGame(GameSession game, String winnerColor, String reason) {
 		game.active = false;
 		game.forcedJumpUserID = null;
-		gamesByUser.remove(game.redPlayer.userID);
-		gamesByUser.remove(game.blackPlayer.userID);
-		gamesById.remove(game.gameID);
+		game.redWantsRematch = false;
+		game.blackWantsRematch = false;
 
 		Message redEnd = new Message();
 		redEnd.setMessageType(Message.GAME_OVER);
@@ -398,6 +397,105 @@ public class Server {
 		sendMessage(game.redPlayer, redEnd);
 		sendMessage(game.blackPlayer, blackEnd);
 		log("ROUND END", game.gameID + " winner=" + winnerColor + " reason=" + reason);
+	}
+
+	private void cleanupGame(GameSession game) {
+		if (game == null) {
+			return;
+		}
+		gamesByUser.remove(game.redPlayer.userID);
+		gamesByUser.remove(game.blackPlayer.userID);
+		gamesById.remove(game.gameID);
+	}
+
+	private void handleRematch(ClientThread sender, Message message) {
+		GameSession game = gamesByUser.get(sender.userID);
+		if (game == null) {
+			Message error = new Message();
+			error.setMessageType(Message.ERROR);
+			error.setStatusCode(400);
+			error.setMessageBody("No game session found");
+			sendMessage(sender, error);
+			return;
+		}
+
+		if (game.active) {
+			Message error = new Message();
+			error.setMessageType(Message.ERROR);
+			error.setStatusCode(400);
+			error.setMessageBody("Cannot request rematch during active game");
+			sendMessage(sender, error);
+			return;
+		}
+
+		if (game.redPlayer.userID.equals(sender.userID)) {
+			game.redWantsRematch = true;
+		}
+		if (game.blackPlayer.userID.equals(sender.userID)) {
+			game.blackWantsRematch = true;
+		}
+
+		if (!(game.redWantsRematch && game.blackWantsRematch)) {
+			Message waiting = new Message();
+			waiting.setMessageType(Message.WAITING);
+			waiting.setStatusCode(200);
+			waiting.setMessageBody("Waiting for opponent rematch decision...");
+			sendMessage(sender, waiting);
+			log("REMATCH", sender.userID + " requested rematch in " + game.gameID);
+			return;
+		}
+
+		game.board = createStartingBoard();
+		game.turnColor = "red";
+		game.active = true;
+		game.forcedJumpUserID = null;
+		game.redWantsRematch = false;
+		game.blackWantsRematch = false;
+
+		Message redMatch = new Message();
+		redMatch.setMessageType(Message.MATCH_FOUND);
+		redMatch.setStatusCode(200);
+		redMatch.setGameID(game.gameID);
+		redMatch.setPlayerColor("red");
+		redMatch.setOpponentID(game.blackPlayer.userID);
+		redMatch.setBoardState(boardToString(game.board));
+		redMatch.setTurnColor(game.turnColor);
+		redMatch.setMessageBody("Rematch started. You are RED. RED moves first.");
+
+		Message blackMatch = new Message();
+		blackMatch.setMessageType(Message.MATCH_FOUND);
+		blackMatch.setStatusCode(200);
+		blackMatch.setGameID(game.gameID);
+		blackMatch.setPlayerColor("black");
+		blackMatch.setOpponentID(game.redPlayer.userID);
+		blackMatch.setBoardState(boardToString(game.board));
+		blackMatch.setTurnColor(game.turnColor);
+		blackMatch.setMessageBody("Rematch started. You are BLACK. RED moves first.");
+
+		sendMessage(game.redPlayer, redMatch);
+		sendMessage(game.blackPlayer, blackMatch);
+		log("MATCH START", game.gameID + " rematch started");
+	}
+
+	private void handleQuit(ClientThread sender, Message message) {
+		GameSession game = gamesByUser.get(sender.userID);
+		if (game == null) {
+			return;
+		}
+
+		ClientThread opponent = opponentOf(game, sender.userID);
+		if (opponent != null) {
+			Message gameOver = new Message();
+			gameOver.setMessageType(Message.GAME_OVER);
+			gameOver.setStatusCode(200);
+			gameOver.setGameID(game.gameID);
+			gameOver.setBoardState(boardToString(game.board));
+			gameOver.setMessageBody("Game closed: opponent quit.");
+			sendMessage(opponent, gameOver);
+		}
+
+		cleanupGame(game);
+		log("ROUND END", game.gameID + " closed because " + sender.userID + " quit");
 	}
 
 	private void tryStartMatch(ClientThread secondPlayer) {
@@ -559,9 +657,21 @@ public class Server {
 			return;
 		}
 
-		if (!hasAnyLegalMove(game.board, game.turnColor)) {
-			String winner = "red".equals(game.turnColor) ? "black" : "red";
-			endGame(game, winner, "Opponent has no legal moves.");
+		boolean redHasMove = hasAnyLegalMove(game.board, "red");
+		boolean blackHasMove = hasAnyLegalMove(game.board, "black");
+
+		if (!redHasMove && !blackHasMove) {
+			endGame(game, "draw", "No legal moves for either player.");
+			return;
+		}
+
+		if (!redHasMove) {
+			endGame(game, "black", "Red has no legal moves.");
+			return;
+		}
+
+		if (!blackHasMove) {
+			endGame(game, "red", "Black has no legal moves.");
 		}
 	}
 
@@ -592,10 +702,11 @@ public class Server {
 				gameOver.setMessageBody("Game over: opponent disconnected.");
 				sendMessage(opponent, gameOver);
 			}
-			gamesByUser.remove(game.redPlayer.userID);
-			gamesByUser.remove(game.blackPlayer.userID);
-			gamesById.remove(game.gameID);
+			cleanupGame(game);
 			log("ROUND END", game.gameID + " ended because " + clientThread.userID + " disconnected");
+		}
+		else if (game != null) {
+			cleanupGame(game);
 		}
 	}
 
@@ -609,6 +720,8 @@ public class Server {
 		String forcedJumpUserID;
 		int forcedFromRow;
 		int forcedFromCol;
+		boolean redWantsRematch;
+		boolean blackWantsRematch;
 	}
 
 	public class ClientThread extends Thread {
@@ -696,6 +809,12 @@ public class Server {
 						}
 						else if (Message.MOVE.equals(data.getMessageType())) {
 							handleMove(this, data);
+						}
+						else if (Message.REMATCH.equals(data.getMessageType())) {
+							handleRematch(this, data);
+						}
+						else if (Message.QUIT.equals(data.getMessageType())) {
+							handleQuit(this, data);
 						}
 					}
 				}
