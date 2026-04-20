@@ -4,23 +4,37 @@ public class Message implements Serializable {
 
 	private static final long serialVersionUID = 42L;
 
+	public static final String JOIN = "join";
+	public static final String WAITING = "waiting";
+	public static final String MATCH_FOUND = "match_found";
+	public static final String CHAT = "chat";
+	public static final String MOVE = "move";
+	public static final String BOARD_STATE = "board_state";
+	public static final String GAME_OVER = "game_over";
+	public static final String ERROR = "error";
+
 	private int statusCode;
 	private String messageType;
 	private String userID;
 	private String receiverID;
 	private String messageBody;
 
-	public static final String JOIN = "join";
-	public static final String SEND_ONE = "send_one";
+	private String gameID;
+	private String playerColor;
+	private String opponentID;
+	private String boardState;
+	private String turnColor;
+
+	private int fromRow;
+	private int fromCol;
+	private int toRow;
+	private int toCol;
 
 	public Message() {
-	}
-
-	public Message(String messageType, String userID, String receiverID, String messageBody) {
-		this.messageType = messageType;
-		this.userID = userID;
-		this.receiverID = receiverID;
-		this.messageBody = messageBody;
+		fromRow = -1;
+		fromCol = -1;
+		toRow = -1;
+		toCol = -1;
 	}
 
 	public int getStatusCode() {
@@ -61,5 +75,77 @@ public class Message implements Serializable {
 
 	public void setMessageBody(String messageBody) {
 		this.messageBody = messageBody;
+	}
+
+	public String getGameID() {
+		return gameID;
+	}
+
+	public void setGameID(String gameID) {
+		this.gameID = gameID;
+	}
+
+	public String getPlayerColor() {
+		return playerColor;
+	}
+
+	public void setPlayerColor(String playerColor) {
+		this.playerColor = playerColor;
+	}
+
+	public String getOpponentID() {
+		return opponentID;
+	}
+
+	public void setOpponentID(String opponentID) {
+		this.opponentID = opponentID;
+	}
+
+	public String getBoardState() {
+		return boardState;
+	}
+
+	public void setBoardState(String boardState) {
+		this.boardState = boardState;
+	}
+
+	public String getTurnColor() {
+		return turnColor;
+	}
+
+	public void setTurnColor(String turnColor) {
+		this.turnColor = turnColor;
+	}
+
+	public int getFromRow() {
+		return fromRow;
+	}
+
+	public void setFromRow(int fromRow) {
+		this.fromRow = fromRow;
+	}
+
+	public int getFromCol() {
+		return fromCol;
+	}
+
+	public void setFromCol(int fromCol) {
+		this.fromCol = fromCol;
+	}
+
+	public int getToRow() {
+		return toRow;
+	}
+
+	public void setToRow(int toRow) {
+		this.toRow = toRow;
+	}
+
+	public int getToCol() {
+		return toCol;
+	}
+
+	public void setToCol(int toCol) {
+		this.toCol = toCol;
 	}
 }
