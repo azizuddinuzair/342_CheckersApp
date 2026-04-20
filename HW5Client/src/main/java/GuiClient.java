@@ -9,6 +9,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -41,6 +43,11 @@ public class GuiClient extends Application {
 	private String opponentID;
 	private String gameID;
 	private String turnColor;
+
+	private Image redPieceImage;
+	private Image redKingImage;
+	private Image blackPieceImage;
+	private Image blackKingImage;
 
 	private int selectedRow = -1;
 	private int selectedCol = -1;
@@ -101,6 +108,8 @@ public class GuiClient extends Application {
 		chatSendButton = new Button("Send Chat");
 		chatSendButton.setOnAction(e -> handleChatSend());
 
+		loadPieceImages();
+
 		playAgainButton = new Button("Play Again");
 		playAgainButton.setDisable(true);
 		playAgainButton.setOnAction(e -> handlePlayAgain());
@@ -108,6 +117,48 @@ public class GuiClient extends Application {
 		quitButton = new Button("Quit");
 		quitButton.setDisable(true);
 		quitButton.setOnAction(e -> handleQuitGame());
+	}
+
+	private void loadPieceImages() {
+		redPieceImage = loadImage("/checkers_images/red.png");
+		redKingImage = loadImage("/checkers_images/red_king.png");
+		blackPieceImage = loadImage("/checkers_images/black.png");
+		blackKingImage = loadImage("/checkers_images/black_king.png");
+	}
+
+	private Image loadImage(String path) {
+		try {
+			return new Image(getClass().getResourceAsStream(path));
+		}
+		catch (Exception e) {
+			return null;
+		}
+	}
+
+	private ImageView createPieceGraphic(char piece) {
+		Image image = null;
+		if (piece == 'r') {
+			image = redPieceImage;
+		}
+		else if (piece == 'R') {
+			image = redKingImage;
+		}
+		else if (piece == 'b') {
+			image = blackPieceImage;
+		}
+		else if (piece == 'B') {
+			image = blackKingImage;
+		}
+
+		if (image == null) {
+			return null;
+		}
+
+		ImageView imageView = new ImageView(image);
+		imageView.setFitWidth(50);
+		imageView.setFitHeight(50);
+		imageView.setPreserveRatio(true);
+		return imageView;
 	}
 
 	private Scene createClientGui() {
@@ -373,19 +424,19 @@ public class GuiClient extends Application {
 
 				char piece = currentBoard[row][col];
 				if (piece == '.') {
+					square.setGraphic(null);
 					square.setText("");
 				}
-				else if (piece == 'r') {
-					square.setText("r");
-				}
-				else if (piece == 'R') {
-					square.setText("R");
-				}
-				else if (piece == 'b') {
-					square.setText("b");
-				}
-				else if (piece == 'B') {
-					square.setText("B");
+				else {
+					ImageView pieceGraphic = createPieceGraphic(piece);
+					if (pieceGraphic != null) {
+						square.setGraphic(pieceGraphic);
+						square.setText("");
+					}
+					else {
+						square.setGraphic(null);
+						square.setText(String.valueOf(piece));
+					}
 				}
 			}
 		}
