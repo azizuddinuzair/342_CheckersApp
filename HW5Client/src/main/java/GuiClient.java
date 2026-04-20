@@ -108,7 +108,10 @@ public class GuiClient extends Application {
 		chatSendButton = new Button("Send Chat");
 		chatSendButton.setOnAction(e -> handleChatSend());
 
-		loadPieceImages();
+		redPieceImage = new Image(getClass().getResourceAsStream("/checkers_images/red.png"));
+		redKingImage = new Image(getClass().getResourceAsStream("/checkers_images/red_king.png"));
+		blackPieceImage = new Image(getClass().getResourceAsStream("/checkers_images/black.png"));
+		blackKingImage = new Image(getClass().getResourceAsStream("/checkers_images/black_king.png"));
 
 		playAgainButton = new Button("Play Again");
 		playAgainButton.setDisable(true);
@@ -117,48 +120,6 @@ public class GuiClient extends Application {
 		quitButton = new Button("Quit");
 		quitButton.setDisable(true);
 		quitButton.setOnAction(e -> handleQuitGame());
-	}
-
-	private void loadPieceImages() {
-		redPieceImage = loadImage("/checkers_images/red.png");
-		redKingImage = loadImage("/checkers_images/red_king.png");
-		blackPieceImage = loadImage("/checkers_images/black.png");
-		blackKingImage = loadImage("/checkers_images/black_king.png");
-	}
-
-	private Image loadImage(String path) {
-		try {
-			return new Image(getClass().getResourceAsStream(path));
-		}
-		catch (Exception e) {
-			return null;
-		}
-	}
-
-	private ImageView createPieceGraphic(char piece) {
-		Image image = null;
-		if (piece == 'r') {
-			image = redPieceImage;
-		}
-		else if (piece == 'R') {
-			image = redKingImage;
-		}
-		else if (piece == 'b') {
-			image = blackPieceImage;
-		}
-		else if (piece == 'B') {
-			image = blackKingImage;
-		}
-
-		if (image == null) {
-			return null;
-		}
-
-		ImageView imageView = new ImageView(image);
-		imageView.setFitWidth(50);
-		imageView.setFitHeight(50);
-		imageView.setPreserveRatio(true);
-		return imageView;
 	}
 
 	private Scene createClientGui() {
@@ -428,8 +389,24 @@ public class GuiClient extends Application {
 					square.setText("");
 				}
 				else {
-					ImageView pieceGraphic = createPieceGraphic(piece);
+					ImageView pieceGraphic = null;
+					if (piece == 'r') {
+						pieceGraphic = new ImageView(redPieceImage);
+					}
+					else if (piece == 'R') {
+						pieceGraphic = new ImageView(redKingImage);
+					}
+					else if (piece == 'b') {
+						pieceGraphic = new ImageView(blackPieceImage);
+					}
+					else if (piece == 'B') {
+						pieceGraphic = new ImageView(blackKingImage);
+					}
+
 					if (pieceGraphic != null) {
+						pieceGraphic.setFitWidth(50);
+						pieceGraphic.setFitHeight(50);
+						pieceGraphic.setPreserveRatio(true);
 						square.setGraphic(pieceGraphic);
 						square.setText("");
 					}
