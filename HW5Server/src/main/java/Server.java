@@ -790,10 +790,11 @@ public class Server {
 				return;
 			}
 
-			String joinedUserID = handleJoinRequest();
-			if (joinedUserID == null) {
-				handleDisconnect(this);
-				return;
+			String joinedUserID = null;
+			while (joinedUserID == null) {
+				joinedUserID = handleJoinRequest();
+
+				if (connection.isClosed()) return;
 			}
 
 			synchronized (Server.this) {
