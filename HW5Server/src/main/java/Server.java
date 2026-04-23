@@ -441,6 +441,14 @@ public class Server {
 			waiting.setStatusCode(200);
 			waiting.setMessageBody("Waiting for opponent rematch decision...");
 			sendMessage(sender, waiting);
+
+			ClientThread opponent = opponentOf(game, sender.userID);
+			Message notifyOpponent = new Message();
+			notifyOpponent.setMessageType(Message.WAITING);
+			notifyOpponent.setStatusCode(200);
+			notifyOpponent.setMessageBody(sender.userID + " wants a rematch");
+			sendMessage(opponent, notifyOpponent);
+
 			log("REMATCH", sender.userID + " requested rematch in " + game.gameID);
 			return;
 		}
