@@ -352,7 +352,7 @@ public class Server {
 		sendMessage(game.blackPlayer, blackView);
 	}
 
-	private void endGame(GameSession game, String winnerColor, String reason) {
+	private void endGame(GameSession game, String winnerColor, String winnerReason, String loserReason) {
 		game.active = false;
 		game.forcedJumpUserID = null;
 		game.redWantsRematch = false;
@@ -366,15 +366,6 @@ public class Server {
 		redEnd.setOpponentID(game.blackPlayer.userID);
 		redEnd.setBoardState(boardToString(game.board));
 		redEnd.setTurnColor(game.turnColor);
-		if ("draw".equals(winnerColor)) {
-			redEnd.setMessageBody("Game over: draw. " + reason);
-		}
-		else if ("red".equals(winnerColor)) {
-			redEnd.setMessageBody("Game over: you win. " + reason);
-		}
-		else {
-			redEnd.setMessageBody("Game over: you lose. " + reason);
-		}
 
 		Message blackEnd = new Message();
 		blackEnd.setMessageType(Message.GAME_OVER);
@@ -384,19 +375,23 @@ public class Server {
 		blackEnd.setOpponentID(game.redPlayer.userID);
 		blackEnd.setBoardState(boardToString(game.board));
 		blackEnd.setTurnColor(game.turnColor);
+
 		if ("draw".equals(winnerColor)) {
-			blackEnd.setMessageBody("Game over: draw. " + reason);
+			redEnd.setMessageBody("Game over: draw. " + winnerReason);
+			blackEnd.setMessageBody("Game over: draw. " + winnerReason);
 		}
-		else if ("black".equals(winnerColor)) {
-			blackEnd.setMessageBody("Game over: you win. " + reason);
+		else if ("red".equals(winnerColor)) {
+			redEnd.setMessageBody("Game over: you win. " + winnerReason);
+			blackEnd.setMessageBody("Game over: you lose. " + loserReason);
 		}
 		else {
-			blackEnd.setMessageBody("Game over: you lose. " + reason);
+			redEnd.setMessageBody("Game over: you lose. " + loserReason);
+			blackEnd.setMessageBody("Game over: you win. " + winnerReason);
 		}
 
 		sendMessage(game.redPlayer, redEnd);
 		sendMessage(game.blackPlayer, blackEnd);
-		log("ROUND END", game.gameID + " winner=" + winnerColor + " reason=" + reason);
+		log("ROUND END", game.gameID + " winner=" + winnerColor + " reason=" + winnerReason);
 	}
 
 	private void cleanupGame(GameSession game) {
@@ -441,6 +436,14 @@ public class Server {
 			waiting.setStatusCode(200);
 			waiting.setMessageBody("Waiting for opponent rematch decision...");
 			sendMessage(sender, waiting);
+
+			ClientThread opponent = opponentOf(game, sender.userID);
+			Message notifyOpponent = new Message();
+			notifyOpponent.setMessageType(Message.WAITING);
+			notifyOpponent.setStatusCode(200);
+			notifyOpponent.setMessageBody(sender.userID + " wants a rematch");
+			sendMessage(opponent, notifyOpponent);
+
 			log("REMATCH", sender.userID + " requested rematch in " + game.gameID);
 			return;
 		}
@@ -653,25 +656,30 @@ public class Server {
 
 		String winnerByPieces = winnerByPieces(game.board);
 		if (winnerByPieces != null) {
-			endGame(game, winnerByPieces, "All opponent pieces captured.");
-			return;
+			if ("red".equals(winnerByPieces)) {
+				endGame(game, "red", "All opponent pieces captured.", "All your pieces were captured.");
+				return;
+			} else {
+				endGame(game, "black", "All opponent pieces captured.", "All your pieces were captured.");
+				return;
+			}
 		}
 
 		boolean redHasMove = hasAnyLegalMove(game.board, "red");
 		boolean blackHasMove = hasAnyLegalMove(game.board, "black");
 
 		if (!redHasMove && !blackHasMove) {
-			endGame(game, "draw", "No legal moves for either player.");
+			endGame(game, "draw", "No legal moves for either player.", "No legal moves for either player.");
 			return;
 		}
 
 		if (!redHasMove) {
-			endGame(game, "black", "Red has no legal moves.");
+			endGame(game, "black", "Opponent has no legal moves.", "You have no legal moves.");
 			return;
 		}
 
 		if (!blackHasMove) {
-			endGame(game, "red", "Black has no legal moves.");
+			endGame(game, "red", "Opponent has no legal moves.", "You have no legal moves.");
 		}
 	}
 
@@ -790,10 +798,11 @@ public class Server {
 				return;
 			}
 
-			String joinedUserID = handleJoinRequest();
-			if (joinedUserID == null) {
-				handleDisconnect(this);
-				return;
+			String joinedUserID = null;
+			while (joinedUserID == null) {
+				joinedUserID = handleJoinRequest();
+
+				if (connection.isClosed()) return;
 			}
 
 			synchronized (Server.this) {

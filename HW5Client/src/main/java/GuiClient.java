@@ -25,6 +25,12 @@ public class GuiClient extends Application {
 	private TextField usernameField;
 	private Button joinButton;
 	private Label statusLabel;
+	private Label redCount;
+	private Label blackCount;
+	private Label turnLabel;
+
+	private VBox redCaptured;
+	private VBox blackCaptured;
 
 	private GridPane boardGrid;
 	private Button[][] boardButtons;
@@ -52,6 +58,26 @@ public class GuiClient extends Application {
 	private int selectedRow = -1;
 	private int selectedCol = -1;
 
+	private boolean inBounds(int row, int col) {
+		return row >= 0 && row < 8 && col >= 0 && col < 8;
+	}
+
+	private boolean isKing(char piece) {
+		return piece == 'R' || piece == 'B';
+	}
+
+	private boolean isPlayerPiece(char piece, String color) {
+		if ("red".equalsIgnoreCase(color)) return piece == 'r' || piece == 'R';
+		if ("black".equalsIgnoreCase(color)) return piece == 'b' || piece == 'B';
+		return false;
+	}
+
+	private boolean isOpponentPiece(char piece, String color) {
+		if ("red".equalsIgnoreCase(color)) return piece == 'b' || piece == 'B';
+		if ("black".equalsIgnoreCase(color)) return piece == 'r' || piece == 'R';
+		return false;
+	}
+
 	public static void main(String[] args) {
 		launch(args);
 	}
@@ -78,6 +104,12 @@ public class GuiClient extends Application {
 		joinButton.setOnAction(e -> handleJoin());
 
 		statusLabel = new Label("Join the server to begin.");
+		redCount = new Label("Red pieces: 12");
+		blackCount = new Label("Black pieces: 12");
+		turnLabel = new Label("Turn: Waiting");
+
+		redCaptured = new VBox(5);
+		blackCaptured = new VBox(5);
 
 		boardGrid = new GridPane();
 		boardGrid.setHgap(0);
@@ -103,6 +135,7 @@ public class GuiClient extends Application {
 		chatList.setPrefHeight(150);
 
 		chatField = new TextField();
+		chatField.setPrefWidth(200);
 		chatField.setPromptText("Type message to opponent");
 
 		chatSendButton = new Button("Send Chat");
@@ -126,11 +159,13 @@ public class GuiClient extends Application {
 		BorderPane root = new BorderPane();
 		root.setPadding(new Insets(10));
 
-		HBox topRow = new HBox(10, usernameField, joinButton, statusLabel);
+		HBox topRow = new HBox(10, usernameField, joinButton, statusLabel, redCount, blackCount, turnLabel);
 		topRow.setAlignment(Pos.CENTER_LEFT);
 		root.setTop(topRow);
 
 		root.setCenter(boardGrid);
+		root.setLeft(redCaptured);
+		root.setRight(blackCaptured);
 
 		HBox chatInputRow = new HBox(10, chatField, chatSendButton, playAgainButton, quitButton);
 		chatInputRow.setAlignment(Pos.CENTER_LEFT);
@@ -216,6 +251,11 @@ public class GuiClient extends Application {
 			return;
 		}
 
+		if (!isMoveValid(selectedRow, selectedCol, row, col)) {
+			statusLabel.setText("Invalid move");
+			return;
+		}
+
 		Message move = new Message();
 		move.setMessageType(Message.MOVE);
 		move.setUserID(userID);
@@ -228,6 +268,7 @@ public class GuiClient extends Application {
 
 		selectedRow = -1;
 		selectedCol = -1;
+		statusLabel.setText("");
 		renderBoard();
 	}
 
@@ -265,12 +306,13 @@ public class GuiClient extends Application {
 			loadBoard(message.getBoardState());
 			selectedRow = -1;
 			selectedCol = -1;
+			statusLabel.setText("");
 			renderBoard();
 			statusLabel.setText(message.getMessageBody());
 			chatList.getItems().clear();
 			chatList.getItems().add("Matched with " + opponentID + ".");
 			playAgainButton.setDisable(true);
-			quitButton.setDisable(true);
+			quitButton.setDisable(false);
 			return;
 		}
 
@@ -280,7 +322,6 @@ public class GuiClient extends Application {
 			renderBoard();
 			selectedRow = -1;
 			selectedCol = -1;
-			statusLabel.setText(message.getMessageBody() + " Turn: " + turnColor);
 			return;
 		}
 
@@ -316,7 +357,6 @@ public class GuiClient extends Application {
 		message.setUserID(userID);
 		message.setGameID(gameID);
 		clientConnection.send(message);
-		statusLabel.setText("Rematch requested...");
 		playAgainButton.setDisable(true);
 	}
 
@@ -360,14 +400,147 @@ public class GuiClient extends Application {
 		}
 	}
 
+	private boolean hasAnyCapture(char[][] board, String color) {
+		for (int row = 0; row < 8; row++) {
+			for (int col = 0; col < 8; col++) {
+				if (isPlayerPiece(board[row][col], color)) {
+					if (hasCaptureFrom(board, row, col, color)) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+	private boolean hasCaptureFrom(char[][] board, int row, int col, String color) {
+		char piece = board[row][col];
+		int[] directions = isKing(piece) ? new int[] { -1, 1 } : ("red".equalsIgnoreCase(color) ? new int[] { 1 } : new int[] { -1 });
+
+		for (int dr : directions) {
+			for (int dc : new int[] {-1, 1}) {
+				int midR = row + dr;
+				int midC = col + dc;
+				int jumpR = row + (2 * dr);
+				int jumpC = col + (2 * dc);
+
+				if (inBounds(jumpR, jumpC)) {
+					if (board[jumpR][jumpC] == '.' && isOpponentPiece(board[midR][midC], color)) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	private boolean isMoveValid(int fromR, int fromC, int toR, int toC) {
+		if (!inBounds(toR, toC) || currentBoard[toR][toC] != '.') return false;
+
+		char piece = currentBoard[fromR][fromC];
+		int rowDiff = toR - fromR;
+		int colDiff = Math.abs(toC - fromC);
+
+		boolean globalCaptureExists = hasAnyCapture(currentBoard, playerColor);
+
+		if (colDiff == 2 && Math.abs(rowDiff) == 2) {
+			int dr = rowDiff / 2;
+			int dc = (toC - fromC) / 2;
+			int midR = fromR + dr;
+			int midC = fromC + dc;
+
+			boolean validDir = isKing(piece) ||
+					(playerColor.equalsIgnoreCase("red") && dr == 1) ||
+					(playerColor.equalsIgnoreCase("black") && dr == -1);
+
+			if (validDir && isOpponentPiece(currentBoard[midR][midC], playerColor)) {
+				return true;
+			}
+		}
+
+		if (!globalCaptureExists && colDiff == 1) {
+			if (piece == 'r' && rowDiff == 1) return true;
+			if (piece == 'b' && rowDiff == -1) return true;
+			if (isKing(piece) && Math.abs(rowDiff) == 1) return true;
+		}
+
+		return false;
+	}
+
 	private boolean isOwnPiece(char piece) {
-		if ("red".equals(playerColor)) {
+		if ("red".equalsIgnoreCase(playerColor)) {
 			return piece == 'r' || piece == 'R';
 		}
-		if ("black".equals(playerColor)) {
+		if ("black".equalsIgnoreCase(playerColor)) {
 			return piece == 'b' || piece == 'B';
 		}
 		return false;
+	}
+
+	private void updatePieceCounts() {
+		int rCount = 0;
+		int bCount = 0;
+		for (int row = 0; row < 8; row++) {
+			for (int col = 0; col < 8; col++) {
+				char piece = currentBoard[row][col];
+				if (piece == 'r' || piece == 'R') rCount++;
+				if (piece == 'b' || piece == 'B') bCount++;
+			}
+		}
+		redCount.setText("Red: " + rCount);
+		blackCount.setText("Black: " + bCount);
+	}
+
+	private void updateTurnIndicator() {
+		if (turnColor == null) {
+			turnLabel.setText("Turn: Waiting");
+			turnLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: black;");
+			return;
+		}
+		if (turnColor.equals("red")) {
+			turnLabel.setText("Turn: RED");
+			turnLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: red;");
+		} else {
+			turnLabel.setText("Turn: BLACK");
+			turnLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: black;");
+		}
+	}
+
+	private void updateCapturedPieces() {
+		redCaptured.getChildren().clear();
+		blackCaptured.getChildren().clear();
+
+		redCaptured.getChildren().add(new Label("Red captured:"));
+		blackCaptured.getChildren().add(new Label("Black captured:"));
+
+		int redCount = 0;
+		int blackCount = 0;
+
+		for (int row = 0; row < 8; row++) {
+			for (int col = 0; col < 8; col++) {
+				char piece = currentBoard[row][col];
+				if (piece == 'r' || piece == 'R') redCount++;
+				if (piece == 'b' || piece == 'B') blackCount++;
+			}
+		}
+
+		int redCapturedNum = 12 - blackCount;
+		int blackCapturedNum = 12 - redCount;
+
+		for (int i = 0; i < redCapturedNum; i++) {
+			ImageView img = new ImageView(blackPieceImage);
+			img.setFitWidth(32);
+			img.setFitHeight(32);
+			img.setPreserveRatio(true);
+			redCaptured.getChildren().add(img);
+		}
+
+		for (int i = 0; i < blackCapturedNum; i++) {
+			ImageView img = new ImageView(redPieceImage);
+			img.setFitWidth(32);
+			img.setFitHeight(32);
+			img.setPreserveRatio(true);
+			blackCaptured.getChildren().add(img);
+		}
 	}
 
 	private void renderBoard() {
@@ -381,7 +554,11 @@ public class GuiClient extends Application {
 					baseColor = "#f6f669";
 				}
 
-				square.setStyle("-fx-background-color: " + baseColor + "; -fx-font-size: 24px; -fx-font-weight: bold;");
+				else if (selectedRow != -1 && isMoveValid(selectedRow, selectedCol, row, col)) {
+					baseColor = "#99ff99";
+				}
+
+				square.setStyle("-fx-background-color: " + baseColor + "; -fx-boarder-color: rgba(0,0,0,0.1);");
 
 				char piece = currentBoard[row][col];
 				if (piece == '.') {
@@ -417,5 +594,8 @@ public class GuiClient extends Application {
 				}
 			}
 		}
+		updatePieceCounts();
+		updateTurnIndicator();
+		updateCapturedPieces();
 	}
 }
