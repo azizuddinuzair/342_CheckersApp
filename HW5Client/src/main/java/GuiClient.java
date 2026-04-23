@@ -135,6 +135,7 @@ public class GuiClient extends Application {
 		chatList.setPrefHeight(150);
 
 		chatField = new TextField();
+		chatField.setPrefWidth(200);
 		chatField.setPromptText("Type message to opponent");
 
 		chatSendButton = new Button("Send Chat");
@@ -356,7 +357,6 @@ public class GuiClient extends Application {
 		message.setUserID(userID);
 		message.setGameID(gameID);
 		clientConnection.send(message);
-		statusLabel.setText("Rematch requested...");
 		playAgainButton.setDisable(true);
 	}
 
@@ -366,7 +366,6 @@ public class GuiClient extends Application {
 		message.setUserID(userID);
 		message.setGameID(gameID);
 		clientConnection.send(message);
-
 		inGame = false;
 		statusLabel.setText("You quit the game.");
 		playAgainButton.setDisable(true);
